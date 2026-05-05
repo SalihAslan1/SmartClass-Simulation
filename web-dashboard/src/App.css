@@ -785,6 +785,102 @@ body {
   border-color: rgba(239, 68, 68, 0.45);
 }
 
+/* ===== SENSOR PANEL ===== */
+.sensor-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.sensor-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sensor-panel-header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.sensor-panel-header span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sensor-card {
+  min-width: 0;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.sensor-card.sensor-warning {
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+.sensor-name {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sensor-value {
+  margin-top: 4px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+.sensor-meta {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.pir-zone-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pir-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--border);
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.pir-zone.active {
+  border-color: rgba(34, 197, 94, 0.42);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.pir-zone strong {
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
 /* ===== METRIC CARDS ===== */
 .metrics-row {
   display: grid;
@@ -1446,6 +1542,25 @@ body {
   min-width: 40px;
   text-align: right;
   font-weight: 600;
+}
+
+@media (max-width: 1200px) {
+  .sensor-grid,
+  .pir-zone-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .sensor-panel-header {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .sensor-grid,
+  .pir-zone-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== SCROLLBAR ===== */

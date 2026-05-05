@@ -35,6 +35,59 @@ export interface LightState {
   back: boolean;
 }
 
+export interface DHT22Reading {
+  model: 'DHT22';
+  temperature: number;
+  humidity: number;
+  lastSampleAgeMs: number;
+  sampleRateHz: number;
+  temperatureError: number;
+  humidityError: number;
+}
+
+export interface PIRZoneReading {
+  id: string;
+  label: string;
+  motionDetected: boolean;
+  lastMotionSecondsAgo: number | null;
+  coveredSeats: number;
+}
+
+export interface PIRReading {
+  model: 'HC-SR501';
+  detectionRangeMeters: number;
+  detectionAngleDegrees: number;
+  holdSeconds: number;
+  zones: PIRZoneReading[];
+}
+
+export interface LDRReading {
+  model: 'GL5528';
+  frontLux: number;
+  backLux: number;
+  thresholdLux: number;
+  frontNeedsLight: boolean;
+  backNeedsLight: boolean;
+  responseMs: number;
+}
+
+export interface ACS712Reading {
+  model: 'ACS712-05B';
+  currentAmp: number;
+  measuredPower: number;
+  voltage: number;
+  sensitivityMvPerAmp: number;
+  errorPercent: number;
+  saturated: boolean;
+}
+
+export interface VirtualSensorReadings {
+  dht22: DHT22Reading;
+  pir: PIRReading;
+  ldr: LDRReading;
+  acs712: ACS712Reading;
+}
+
 export interface SimulationStatus {
   recordedAt: string;
   timeStep: number;
@@ -57,6 +110,13 @@ export interface SimulationStatus {
   sunIntensity: number;
   windowOpen: boolean;
   doorOpen: boolean;
+  humidity: number;
+  measuredPower: number;
+  measuredCurrent: number;
+  frontLux: number;
+  backLux: number;
+  motionDetected: boolean;
+  sensorReadings: VirtualSensorReadings;
 }
 
 export interface SimulationStats {

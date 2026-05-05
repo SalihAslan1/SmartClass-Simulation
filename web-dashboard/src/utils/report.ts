@@ -27,6 +27,8 @@ interface DerivedMetrics {
   peakPowerStep: number;
   peakTemperature: number;
   minTemperature: number;
+  averageHumidity: number;
+  averageMeasuredPower: number;
 }
 
 const formatDateTime = (value: string): string => {
@@ -66,9 +68,13 @@ const deriveMetrics = (
   let peakPowerStep = 0;
   let peakTemperature = Number.NEGATIVE_INFINITY;
   let minTemperature = Number.POSITIVE_INFINITY;
+  let humiditySum = 0;
+  let measuredPowerSum = 0;
 
   for (const row of rows) {
     occupancySum += row.occupancy;
+    humiditySum += row.humidity;
+    measuredPowerSum += row.measuredPower;
 
     if (row.temperature >= targetTemp - 0.5 && row.temperature <= targetTemp + 0.5) {
       comfortSteps += 1;
@@ -108,6 +114,8 @@ const deriveMetrics = (
     peakPowerStep,
     peakTemperature: Number.isFinite(peakTemperature) ? peakTemperature : targetTemp,
     minTemperature: Number.isFinite(minTemperature) ? minTemperature : targetTemp,
+    averageHumidity: humiditySum / totalSteps,
+    averageMeasuredPower: measuredPowerSum / totalSteps,
   };
 };
 
@@ -129,6 +137,9 @@ const buildDetailRowsText = (rows: SimulationStatus[]): string[] => {
       `${String(Math.round(step.totalPower)).padStart(5, ' ')} W`,
       `${String(Math.round(step.hvacPower)).padStart(5, ' ')} W`,
       `${String(Math.round(step.lightPower)).padStart(4, ' ')} W`,
+      `${String(Math.round(step.measuredPower)).padStart(5, ' ')} W`,
+      `%${step.humidity.toFixed(1).padStart(5, ' ')}`,
+      `${String(step.frontLux).padStart(4, ' ')}/${String(step.backLux).padEnd(4, ' ')} lux`,
       `${step.outsideTemp.toFixed(1).padStart(5, ' ')} C`,
       `Pencere:${formatBool(step.windowOpen).padEnd(6, ' ')}`,
       `Kapi:${formatBool(step.doorOpen).padEnd(6, ' ')}`,
@@ -169,6 +180,8 @@ export function buildSimulationReportText({
     `Konfor Araliginda Gecen Adim: ${derived.comfortSteps} (%${derived.comfortPercent.toFixed(1)})`,
     `Ortalama Sinif Mevcudu: ${derived.averageOccupancy.toFixed(1)} kisi`,
     `Isiklarin Acik Oldugu Adimlar: ${derived.lightOnSteps} (%${derived.lightOnPercent.toFixed(1)})`,
+    `Ortalama DHT22 Nem Okumasi: %${derived.averageHumidity.toFixed(1)}`,
+    `Ortalama ACS712 Guc Okumasi: ${derived.averageMeasuredPower.toFixed(1)} W`,
     `Pencere Acik Adim Sayisi: ${derived.windowOpenSteps}`,
     `Kapi Acik Adim Sayisi: ${derived.doorOpenSteps}`,
     `Zirve Toplam Guc: ${derived.peakPower.toFixed(2)} W (Adim ${derived.peakPowerStep})`,
@@ -179,6 +192,7 @@ export function buildSimulationReportText({
     `Sinif Mevcudu: ${currentStatus.occupancy} / ${currentStatus.capacity}`,
     `Doluluk Orani: %${currentStatus.occupancyPercentage.toFixed(2)}`,
     `Sicaklik: ${currentStatus.temperature.toFixed(1)} C`,
+    `DHT22 Sicaklik/Nem: ${currentStatus.sensorReadings.dht22.temperature.toFixed(1)} C / %${currentStatus.humidity.toFixed(1)}`,
     `Dis Sicaklik: ${currentStatus.outsideTemp.toFixed(1)} C`,
     `HVAC Durumu: ${currentStatus.hvacMode}`,
     `HVAC Guc Yuzdesi: %${currentStatus.hvacPowerPercentage}`,
@@ -186,6 +200,9 @@ export function buildSimulationReportText({
     `Isik Durumu: ${currentStatus.lightStatus}`,
     `Isik Guc Tuketimi: ${currentStatus.lightPower.toFixed(2)} W`,
     `Toplam Anlik Guc: ${currentStatus.totalPower.toFixed(2)} W`,
+    `ACS712 Olculen Guc/Akim: ${currentStatus.measuredPower.toFixed(2)} W / ${currentStatus.measuredCurrent.toFixed(2)} A`,
+    `LDR On/Arka Lux: ${currentStatus.frontLux} / ${currentStatus.backLux}`,
+    `PIR Aktif Bolge: ${currentStatus.sensorReadings.pir.zones.filter((zone) => zone.motionDetected).length} / ${currentStatus.sensorReadings.pir.zones.length}`,
     `Pencere Durumu: ${formatBool(currentStatus.windowOpen)}`,
     `Kapi Durumu: ${formatBool(currentStatus.doorOpen)}`,
     `Yalitim Seviyesi: %${Math.round(currentStatus.insulation * 100)}`,
@@ -212,9 +229,16 @@ export function buildSimulationReportText({
     `Sogutma Adimlari: ${stats.coolingSteps} (%${stats.coolingPercent})`,
     `Kapali Adimlar: ${stats.offSteps} (%${stats.offPercent})`,
     '',
+    'SANAL SENSOR TEKNIK MODELLERI',
+    '------------------------------------------------------------',
+    'DHT22: -40/+80 C, +-0.5 C, %0-%100 RH, +- %2-5 RH, 0.5 Hz ornekleme.',
+    'HC-SR501 PIR: 3-7 m algilama, 120 derece aci, hareket sonrasi gecikmeli HIGH cikisi.',
+    'GL5528 LDR: Analog lux tahmini, 400 lux esik, 20-30 ms tepki suresi.',
+    'ACS712-05B: +-5A aralik, 185 mV/A hassasiyet, yaklasik +- %1.5 hata payi.',
+    '',
     'ADIM ADIM DETAYLAR',
     '------------------------------------------------------------',
-    'Adim | Tarih-Saat          | Sicak  | Mevcut   | Doluluk  | HVAC    | HVAC%   | Isik  | Toplam | HVAC  | Isik | Dis   | Pencere       | Kapi',
+    'Adim | Tarih-Saat          | Sicak  | Mevcut   | Doluluk  | HVAC    | HVAC%   | Isik  | Toplam | HVAC  | Isik | ACS   | Nem     | Lux       | Dis   | Pencere       | Kapi',
     ...buildDetailRowsText(effectiveHistory),
     '',
     'Rapor sonu.',
@@ -250,6 +274,9 @@ export function buildSimulationReportHtml({
       <td>${step.totalPower.toFixed(2)} W</td>
       <td>${step.hvacPower.toFixed(2)} W</td>
       <td>${step.lightPower.toFixed(2)} W</td>
+      <td>${step.measuredPower.toFixed(2)} W</td>
+      <td>%${step.humidity.toFixed(1)}</td>
+      <td>${step.frontLux}/${step.backLux} lux</td>
       <td>${step.outsideTemp.toFixed(1)} C</td>
       <td>${formatBool(step.windowOpen)}</td>
       <td>${formatBool(step.doorOpen)}</td>
@@ -436,6 +463,14 @@ export function buildSimulationReportHtml({
         <h3>Konfor Orani</h3>
         <p class="big">${derived.comfortPercent.toFixed(1)}%</p>
       </div>
+      <div class="card">
+        <h3>DHT22 Ortalama Nem</h3>
+        <p class="big">${derived.averageHumidity.toFixed(1)}%</p>
+      </div>
+      <div class="card">
+        <h3>ACS712 Ortalama Guc</h3>
+        <p class="big">${derived.averageMeasuredPower.toFixed(1)} W</p>
+      </div>
     </section>
 
     <section class="section">
@@ -458,12 +493,16 @@ export function buildSimulationReportHtml({
         <div><span class="label">Zaman Adimi</span><span class="value">${currentStatus.timeStep}</span></div>
         <div><span class="label">Sinif Mevcudu</span><span class="value">${currentStatus.occupancy} / ${currentStatus.capacity} (%${currentStatus.occupancyPercentage.toFixed(1)})</span></div>
         <div><span class="label">Sicaklik</span><span class="value">${currentStatus.temperature.toFixed(1)} C</span></div>
+        <div><span class="label">DHT22 Sicaklik / Nem</span><span class="value">${currentStatus.sensorReadings.dht22.temperature.toFixed(1)} C / %${currentStatus.humidity.toFixed(1)}</span></div>
         <div><span class="label">Dis Sicaklik</span><span class="value">${currentStatus.outsideTemp.toFixed(1)} C</span></div>
         <div><span class="label">HVAC</span><span class="value"><span class="badge ${currentStatus.hvacMode === 'HEATING' ? 'heating' : currentStatus.hvacMode === 'COOLING' ? 'cooling' : 'off'}">${currentStatus.hvacMode}</span> %${currentStatus.hvacPowerPercentage}</span></div>
         <div><span class="label">Isiklar</span><span class="value"><span class="badge light">${currentStatus.lightStatus}</span></span></div>
         <div><span class="label">HVAC Gucu</span><span class="value">${currentStatus.hvacPower.toFixed(2)} W</span></div>
         <div><span class="label">Isik Gucu</span><span class="value">${currentStatus.lightPower.toFixed(2)} W</span></div>
         <div><span class="label">Toplam Guc</span><span class="value">${currentStatus.totalPower.toFixed(2)} W</span></div>
+        <div><span class="label">ACS712 Olcum</span><span class="value">${currentStatus.measuredPower.toFixed(2)} W / ${currentStatus.measuredCurrent.toFixed(2)} A</span></div>
+        <div><span class="label">LDR Lux</span><span class="value">On ${currentStatus.frontLux} / Arka ${currentStatus.backLux}</span></div>
+        <div><span class="label">PIR Aktif Bolge</span><span class="value">${currentStatus.sensorReadings.pir.zones.filter((zone) => zone.motionDetected).length} / ${currentStatus.sensorReadings.pir.zones.length}</span></div>
         <div><span class="label">Pencere / Kapi</span><span class="value">${formatBool(currentStatus.windowOpen)} / ${formatBool(currentStatus.doorOpen)}</span></div>
         <div><span class="label">Yalitim</span><span class="value">%${Math.round(currentStatus.insulation * 100)}</span></div>
         <div><span class="label">Gunes Etkisi</span><span class="value">%${Math.round(currentStatus.sunIntensity * 100)}</span></div>
@@ -485,6 +524,16 @@ export function buildSimulationReportHtml({
     </section>
 
     <section class="section">
+      <h2>Sanal Sensor Teknik Modelleri</h2>
+      <div class="meta">
+        <div><span class="label">DHT22</span><span class="value">+-0.5 C, +- %2-5 RH, 0.5 Hz</span></div>
+        <div><span class="label">HC-SR501 PIR</span><span class="value">3-7 m, 120 derece, gecikmeli hareket cikisi</span></div>
+        <div><span class="label">GL5528 LDR</span><span class="value">Analog lux tahmini, 20-30 ms tepki</span></div>
+        <div><span class="label">ACS712-05B</span><span class="value">+-5A, 185 mV/A, +- %1.5 hata</span></div>
+      </div>
+    </section>
+
+    <section class="section">
       <h2>Detayli Kayit Tablosu</h2>
       <div class="table-wrap">
         <table>
@@ -501,6 +550,9 @@ export function buildSimulationReportHtml({
               <th>Toplam Guc</th>
               <th>HVAC Guc</th>
               <th>Isik Guc</th>
+              <th>ACS712</th>
+              <th>Nem</th>
+              <th>Lux</th>
               <th>Dis Sicaklik</th>
               <th>Pencere</th>
               <th>Kapi</th>
