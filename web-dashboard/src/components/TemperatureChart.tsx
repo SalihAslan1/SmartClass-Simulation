@@ -22,8 +22,8 @@ export default function TemperatureChart({ history, targetTemp = 25 }: Temperatu
         <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
           <defs>
             <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
-              <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
+              <stop offset="0%" stopColor="#2dd4bf" stopOpacity={0.28} />
+              <stop offset="100%" stopColor="#2dd4bf" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -41,28 +41,28 @@ export default function TemperatureChart({ history, targetTemp = 25 }: Temperatu
           <Tooltip
             contentStyle={{
               backgroundColor: 'rgba(15, 23, 42, 0.95)',
-              border: '1px solid rgba(6, 182, 212, 0.3)',
+              border: '1px solid rgba(45, 212, 191, 0.32)',
               borderRadius: '8px',
               color: '#e2e8f0',
             }}
             formatter={(v) => [`${v}°C`, 'Sicaklik']}
             labelFormatter={(l) => `Adim: ${l}`}
           />
-          <ReferenceArea y1={targetTemp - 0.5} y2={targetTemp + 0.5} fill="rgba(34, 197, 94, 0.08)" />
+          <ReferenceArea y1={targetTemp - 0.5} y2={targetTemp + 0.5} fill="rgba(52, 211, 153, 0.08)" />
           <ReferenceLine
             y={targetTemp}
-            stroke="#ef4444"
+            stroke="#f87171"
             strokeDasharray="5 5"
             strokeOpacity={0.6}
-            label={{ value: `Hedef ${targetTemp}°C`, fill: '#ef4444', fontSize: 10, position: 'right' }}
+            label={{ value: `Hedef ${targetTemp}°C`, fill: '#f87171', fontSize: 10, position: 'right' }}
           />
           <Line
             type="monotone"
             dataKey="temp"
-            stroke="#06b6d4"
+            stroke="#2dd4bf"
             strokeWidth={2.5}
             dot={false}
-            activeDot={{ r: 4, fill: '#06b6d4', stroke: '#0f172a', strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: '#2dd4bf', stroke: '#080b0f', strokeWidth: 2 }}
           />
         </LineChart>
       </ResponsiveContainer>
