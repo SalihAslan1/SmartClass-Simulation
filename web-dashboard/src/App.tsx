@@ -8,6 +8,7 @@ import type {
   SimulationStats,
   SimulationStatus,
   TempSettings,
+  VirtualSensorReadings,
 } from './types';
 import Sidebar from './components/Sidebar';
 import ClassroomView from './components/ClassroomView';
@@ -15,6 +16,7 @@ import MetricCard from './components/MetricCard';
 import TemperatureChart from './components/TemperatureChart';
 import PowerChart from './components/PowerChart';
 import StatsPanel from './components/StatsPanel';
+import SensorPanel from './components/SensorPanel';
 import {
   buildSimulationReportHtml,
   buildSimulationReportText,
@@ -31,6 +33,51 @@ import {
 } from './utils/sessions';
 import { buildAlerts, deriveMetrics } from './utils/insights';
 import './App.css';
+
+const defaultSensorReadings = (capacity = 30): VirtualSensorReadings => ({
+  dht22: {
+    model: 'DHT22',
+    temperature: 25,
+    humidity: 46,
+    lastSampleAgeMs: 0,
+    sampleRateHz: 0.5,
+    temperatureError: 0,
+    humidityError: 0,
+  },
+  pir: {
+    model: 'HC-SR501',
+    detectionRangeMeters: 5,
+    detectionAngleDegrees: 120,
+    holdSeconds: 6,
+    zones: [
+      {
+        id: 'center',
+        label: 'Merkez PIR',
+        motionDetected: false,
+        lastMotionSecondsAgo: null,
+        coveredSeats: capacity,
+      },
+    ],
+  },
+  ldr: {
+    model: 'GL5528',
+    frontLux: 0,
+    backLux: 0,
+    thresholdLux: 400,
+    frontNeedsLight: true,
+    backNeedsLight: true,
+    responseMs: 25,
+  },
+  acs712: {
+    model: 'ACS712-05B',
+    currentAmp: 0,
+    measuredPower: 0,
+    voltage: 220,
+    sensitivityMvPerAmp: 185,
+    errorPercent: 0,
+    saturated: false,
+  },
+});
 
 const defaultStatus = (capacity: number, classroomType: ClassroomTypeId): SimulationStatus => ({
   recordedAt: new Date().toISOString(),
@@ -54,6 +101,13 @@ const defaultStatus = (capacity: number, classroomType: ClassroomTypeId): Simula
   sunIntensity: 0.2,
   windowOpen: false,
   doorOpen: false,
+  humidity: 46,
+  measuredPower: 0,
+  measuredCurrent: 0,
+  frontLux: 0,
+  backLux: 0,
+  motionDetected: false,
+  sensorReadings: defaultSensorReadings(capacity),
 });
 
 const defaultStats = (): SimulationStats => ({
@@ -112,7 +166,12 @@ function App() {
     setEnvironmentSettings(snapshot.environmentSettings);
     setTempSettings(snapshot.tempSettings);
     setSpeed(snapshot.speed);
-    setStatus({ ...snapshot.status, capacity: nextType.capacity });
+    setStatus({
+      ...defaultStatus(nextType.capacity, nextType.id),
+      ...snapshot.status,
+      capacity: nextType.capacity,
+      sensorReadings: snapshot.status.sensorReadings ?? defaultSensorReadings(nextType.capacity),
+    });
     setHistory(snapshot.history);
     setStats(snapshot.stats);
     setSeatedPositions(new Set(snapshot.seatedPositions));
@@ -223,8 +282,8 @@ function App() {
   };
 
   const handleTempSettingsChange = (newSettings: TempSettings) => {
-    setTempSettings(newSettings);
     simulationRef.current.hvac.setThresholds(newSettings);
+    setTempSettings(simulationRef.current.hvac.getThresholds());
   };
 
   const handleEnvironmentSettingsChange = (newSettings: EnvironmentSettings) => {
@@ -363,34 +422,36 @@ function App() {
           <div className="metrics-row">
             <MetricCard
               icon="🌡️"
-              label="Sicaklik"
-              value={`${status.temperature}°C`}
-              subValue={`Hedef: ${tempSettings.targetTemp}°C | Dis: ${environmentSettings.outsideTemp}°C`}
+              label="DHT22 Sicaklik"
+              value={`${status.sensorReadings.dht22.temperature}°C`}
+              subValue={`Ortam: ${status.temperature}°C | Nem: %${status.humidity}`}
               gradient="temp"
               trend={status.temperature > tempSettings.targetTemp ? 'up' : status.temperature < tempSettings.targetTemp ? 'down' : 'stable'}
             />
             <MetricCard
               icon="⚡"
-              label="Toplam Enerji"
-              value={`${(stats.totalEnergy / 1000).toFixed(1)} kJ`}
-              subValue={`${status.totalPower} W anlik | Zirve ${metrics.peakPower} W`}
+              label="ACS712 Guc"
+              value={`${status.measuredPower} W`}
+              subValue={`${status.measuredCurrent} A | Hesap: ${status.totalPower} W`}
               gradient="energy"
             />
             <MetricCard
               icon="👥"
-              label="Doluluk"
+              label="PIR Doluluk"
               value={`${status.occupancy} / ${status.capacity}`}
-              subValue={`Ort: ${metrics.averageOccupancy} kisi | %${status.occupancyPercentage}`}
+              subValue={`${status.motionDetected ? 'Hareket algilandi' : 'Hareket yok'} | %${status.occupancyPercentage}`}
               gradient="occupancy"
             />
             <MetricCard
               icon="💡"
-              label="Isiklar"
+              label="LDR Isiklar"
               value={lightLabel}
-              subValue={`%${metrics.lightUsageRate} kullanim | ${status.lightPower} W`}
+              subValue={`On ${status.frontLux} lux | Arka ${status.backLux} lux`}
               gradient="hvac"
             />
           </div>
+
+          <SensorPanel readings={status.sensorReadings} />
 
           <div className={`classroom-section classroom-section-${classroomType.id}`}>
             <ClassroomView

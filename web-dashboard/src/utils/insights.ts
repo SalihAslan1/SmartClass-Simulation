@@ -77,6 +77,33 @@ export function buildAlerts(
     });
   }
 
+  if (status.humidity < 30 || status.humidity > 70) {
+    alerts.push({
+      id: 'humidity-comfort',
+      level: 'info',
+      title: 'DHT22 Nem Konforu',
+      message: `Sanal DHT22 nem okumasi %${status.humidity}. Konfor araligi disinda olabilir.`,
+    });
+  }
+
+  if (status.motionDetected && status.lightStatus === 'OFF' && (status.frontLux < 250 || status.backLux < 250)) {
+    alerts.push({
+      id: 'low-lux-motion',
+      level: 'warning',
+      title: 'LDR Dusuk Aydinlik',
+      message: 'PIR hareket algiliyor ancak LDR olcumu dusuk. Isik esigi ve bolge kararini kontrol edin.',
+    });
+  }
+
+  if (status.sensorReadings.acs712.saturated) {
+    alerts.push({
+      id: 'acs-limit',
+      level: 'danger',
+      title: 'ACS712 Olcum Siniri',
+      message: 'Sanal ACS712-05B 5A sinirina ulasti. Gercek sistemde daha yuksek akim aralikli sensor gerekebilir.',
+    });
+  }
+
   if (metrics.inefficientHvacSteps >= 3) {
     alerts.push({
       id: 'repeated-loss',

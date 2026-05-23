@@ -24,11 +24,11 @@ export default function ClassroomView({
   const halfRow = Math.ceil(rows / 2);
 
   const roomTint = useMemo(() => {
-    if (temperature < 22) return 'rgba(59, 130, 246, 0.12)';
-    if (temperature < 24) return 'rgba(59, 130, 246, 0.06)';
+    if (temperature < 22) return 'rgba(96, 165, 250, 0.12)';
+    if (temperature < 24) return 'rgba(96, 165, 250, 0.06)';
     if (temperature <= 26) return 'rgba(34, 197, 94, 0.06)';
-    if (temperature <= 28) return 'rgba(249, 115, 22, 0.08)';
-    return 'rgba(239, 68, 68, 0.12)';
+    if (temperature <= 28) return 'rgba(245, 158, 11, 0.08)';
+    return 'rgba(248, 113, 113, 0.12)';
   }, [temperature]);
 
   const particleCount = useMemo(() => {

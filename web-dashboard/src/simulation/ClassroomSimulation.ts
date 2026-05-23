@@ -2,15 +2,18 @@ import { TemperatureSensor } from './TemperatureSensor';
 import { LightSensor } from './LightSensor';
 import { OccupancySensor } from './OccupancySensor';
 import { HVACSystem } from './HVACSystem';
+import { VirtualSensorSuite } from './VirtualSensors';
 import type {
   ClassroomType,
   ClassroomTypeId,
   ClassroomTypes,
   EnvironmentSettings,
+  LightState,
   SimulationSnapshot,
   SimulationStats,
   SimulationStatus,
   TempSettings,
+  VirtualSensorReadings,
 } from '../types';
 
 export const CLASSROOM_TYPES: ClassroomTypes = {
@@ -68,6 +71,7 @@ export class ClassroomSimulation {
   private minTemp: number;
   private maxTemp: number;
   private seatedPositions: Set<number>;
+  private sensorSuite: VirtualSensorSuite;
 
   constructor(classroomTypeId: ClassroomTypeId = 'small', initialTemp = 25.0) {
     this.classroomType = CLASSROOM_TYPES[classroomTypeId] || CLASSROOM_TYPES.small;
@@ -89,6 +93,7 @@ export class ClassroomSimulation {
     this.minTemp = initialTemp;
     this.maxTemp = initialTemp;
     this.seatedPositions = new Set();
+    this.sensorSuite = new VirtualSensorSuite(this.classroomType, initialTemp);
   }
 
   simulationStep(environmentSettings?: EnvironmentSettings): SimulationStatus {
@@ -106,17 +111,22 @@ export class ClassroomSimulation {
       activeEnvironment
     );
 
-    const lightState = this.lightSensor.checkLightNeed(
-      this.seatedPositions,
-      this.classroomType.capacity,
-      this.classroomType.cols
-    );
+    const roomSensorReadings = this.sensorSuite.readRoom({
+      temperature: newTemp,
+      occupancy,
+      environment: activeEnvironment,
+      seatedPositions: this.seatedPositions,
+      classroomType: this.classroomType,
+    });
+    const lightState = this.calculateSensorBasedLightState(roomSensorReadings, occupancy);
+    this.lightSensor.setState(lightState.front, lightState.back);
     const lightStatus = this.lightSensor.getLightStatus();
     const lightCount = this.lightSensor.getLightCount();
 
     const hvacPower = this.hvac.getPowerConsumption();
     const lightPowerValue = lightCount * this.singleLightPower;
     const totalPower = hvacPower + lightPowerValue;
+    const acs712 = this.sensorSuite.measurePower(totalPower);
 
     this.totalEnergy += totalPower;
     if (hvacMode === 'HEATING') this.heatingSteps++;
@@ -149,6 +159,16 @@ export class ClassroomSimulation {
       sunIntensity: activeEnvironment.sunIntensity,
       windowOpen: activeEnvironment.windowOpen,
       doorOpen: activeEnvironment.doorOpen,
+      humidity: roomSensorReadings.dht22.humidity,
+      measuredPower: acs712.measuredPower,
+      measuredCurrent: acs712.currentAmp,
+      frontLux: roomSensorReadings.ldr.frontLux,
+      backLux: roomSensorReadings.ldr.backLux,
+      motionDetected: roomSensorReadings.pir.zones.some((zone) => zone.motionDetected),
+      sensorReadings: {
+        ...roomSensorReadings,
+        acs712,
+      },
     };
 
     this.history.push(status);
@@ -201,6 +221,14 @@ export class ClassroomSimulation {
 
   getCurrentStatus(): SimulationStatus {
     const lightCount = this.lightSensor.getLightCount();
+    const sensorReadings = this.sensorSuite.read({
+      temperature: this.temperatureSensor.getTemperature(),
+      occupancy: this.occupancySensor.getOccupancy(),
+      environment: DEFAULT_ENVIRONMENT,
+      seatedPositions: this.seatedPositions,
+      classroomType: this.classroomType,
+      actualPower: this.hvac.getPowerConsumption() + lightCount * this.singleLightPower,
+    });
     return {
       recordedAt: new Date().toISOString(),
       timeStep: this.timeStep,
@@ -223,6 +251,13 @@ export class ClassroomSimulation {
       sunIntensity: DEFAULT_ENVIRONMENT.sunIntensity,
       windowOpen: DEFAULT_ENVIRONMENT.windowOpen,
       doorOpen: DEFAULT_ENVIRONMENT.doorOpen,
+      humidity: sensorReadings.dht22.humidity,
+      measuredPower: sensorReadings.acs712.measuredPower,
+      measuredCurrent: sensorReadings.acs712.currentAmp,
+      frontLux: sensorReadings.ldr.frontLux,
+      backLux: sensorReadings.ldr.backLux,
+      motionDetected: sensorReadings.pir.zones.some((zone) => zone.motionDetected),
+      sensorReadings,
     };
   }
 
@@ -271,6 +306,10 @@ export class ClassroomSimulation {
     this.lightSensor.setState(snapshot.status.frontLight, snapshot.status.backLight);
     this.hvac = new HVACSystem();
     this.hvac.restoreSnapshot(snapshot.hvacSnapshot);
+    this.sensorSuite = new VirtualSensorSuite(this.classroomType, snapshot.status.temperature);
+    if (snapshot.status.sensorReadings) {
+      this.sensorSuite.restore(snapshot.status.sensorReadings, this.classroomType);
+    }
 
     this.timeStep = snapshot.stats.totalSteps;
     this.history = [...snapshot.history];
@@ -289,6 +328,7 @@ export class ClassroomSimulation {
     this.occupancySensor.currentOccupancy = 0;
     this.hvac = new HVACSystem();
     this.lightSensor = new LightSensor();
+    this.sensorSuite = new VirtualSensorSuite(this.classroomType, 25.0);
     this.timeStep = 0;
     this.history = [];
     this.totalEnergy = 0;
@@ -299,5 +339,30 @@ export class ClassroomSimulation {
     this.minTemp = 25.0;
     this.maxTemp = 25.0;
     this.seatedPositions = new Set();
+  }
+
+  private calculateSensorBasedLightState(
+    readings: Omit<VirtualSensorReadings, 'acs712'>,
+    occupancy: number
+  ): LightState {
+    if (occupancy === 0) {
+      return {
+        front: false,
+        back: false,
+      };
+    }
+
+    const zones = readings.pir.zones;
+    const hasFrontMotion = zones.some((zone) => (
+      zone.motionDetected && (zone.id.includes('front') || zone.id === 'center')
+    ));
+    const hasBackMotion = zones.some((zone) => (
+      zone.motionDetected && (zone.id.includes('back') || zone.id === 'center')
+    ));
+
+    return {
+      front: hasFrontMotion && readings.ldr.frontNeedsLight,
+      back: hasBackMotion && readings.ldr.backNeedsLight,
+    };
   }
 }
